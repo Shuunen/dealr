@@ -1,0 +1,22 @@
+{
+  "name": "dealr",
+  "version": "0.0.1",
+  "description": "Daily deals with no clutter",
+  "main": "index.js",
+  "dependencies": {
+    "eslint": "^4.3.0",
+    "node-notifier": "^5.1.2",
+    "nodemon": "^1.11.0",
+    "puppeteer": "^0.12.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "yarn && nodemon app.js --watch app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shuunen/dealr.git"
+  },
+  "author": "Shuunen",
+  "license": "GPL-3.0"
+}

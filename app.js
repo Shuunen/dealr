@@ -47,7 +47,7 @@ function scroll(page) {
 }
 
 let scrape = async (limit = null) => {
-    const browser = await puppeteer.launch({ headless: false })
+    const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
 
     await page.goto('https://www.dealabs.com/hot')

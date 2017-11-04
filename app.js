@@ -52,9 +52,9 @@ let scrape = async (limit = null) => {
 
     await page.goto('https://www.dealabs.com/hot')
     await page.waitFor(800)
-    // await scroll(page)
-    // await scroll(page)
-    // await scroll(page)
+    await scroll(page)
+    await scroll(page)
+    await scroll(page)
 
     let deals = await page.evaluate(() => {
         let elements = document.querySelectorAll('section.thread-list--type-list article.thread.thread--type-list')
@@ -80,7 +80,7 @@ let scrape = async (limit = null) => {
     })
 
     console.log(deals.length, 'deals extracted')
-    deals = deals.filter(deal => deal.temperature > 200)
+    deals = deals.filter(deal => deal.temperature > 300)
     if (limit) {
         deals = deals.splice(0, limit)
     }

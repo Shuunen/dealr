@@ -13,7 +13,7 @@ Create a `config.json` file with the IFTTT webhook url, eg :
 }
 ```
 Then install dependencies & start Dealr :
-`npm install && npm start` or `yarn && yarn start`
+`npm install` then `npm start` or `npm run dev` to watch for changes in app.js
 
 ## TODO
 [ ] transform many variables in app.js into configurable ones

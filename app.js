@@ -79,12 +79,14 @@ let scrape = async (limit = null) => {
         return deals
     })
 
-    console.log(deals.length, 'deals extracted')
-    deals = deals.filter(deal => deal.temperature > 300)
+    console.log(deals.length, 'deals found')
+    const temperatureMin = 300
+    deals = deals.filter(deal => deal.temperature > temperatureMin)
+    console.log(deals.length, 'deals above ' + temperatureMin + '°')
     if (limit) {
         deals = deals.splice(0, limit)
     }
-    console.log(deals.length, 'deals filtered')
+    console.log(deals.length, 'deals with limit')
 
     await browser.close()
 

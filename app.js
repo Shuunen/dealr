@@ -2,12 +2,23 @@ const fs = require('fs')
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'))
 const puppeteer = require('puppeteer')
 const request = require('request')
+const hoursBetweenRuns = 3
 const dealsSentFile = 'deals-sent.log'
 let dealsSent
 
+let log = (str) => console.log(time() + ' : ' + str)
+
+let time = (addHours = 0) => {
+    const date = new Date()
+    date.setHours(date.getHours() + addHours);
+    const hours = date.getHours() + ''
+    const minutes = date.getMinutes() + ''
+    return (hours.length === 1 ? '0' : '') + hours + 'h' + (minutes.length === 1 ? '0' : '') + minutes
+}
+
 try {
     dealsSent = fs.readFileSync(dealsSentFile, 'utf8').trim().split('\n')
-    console.log('Deals already sent :', dealsSent)
+    log('Found ' + dealsSent.length + ' deals already sent in ' + dealsSentFile)
 } catch (e) {
     fs.writeFileSync(dealsSentFile, '', function (err) {
         if (err) {
@@ -16,14 +27,12 @@ try {
     })
 }
 
-function postDeal(deal) {
-    if (dealsSent.indexOf(deal.id) === -1) {
-        dealsSent.push(deal.id)
-        fs.appendFileSync(dealsSentFile, deal.id + '\n')
-        console.log('New deal "' + deal.title + '" will be sent')
-    } else {
-        console.log('Deal "' + deal.title + '" with id "' + deal.id + '" already sent')
+let postDeal = (deal) => {
+    if (dealsSent.indexOf(deal.id) !== -1) {
+        log('Avoid re-sending deal ' + deal.id + ' "' + deal.titleShort + '"')
         return
+    } else {
+        log('Sending brand new deal ' + deal.id + ' "' + deal.titleShort + '"')
     }
     request({
         uri: config.iftttWebhook,
@@ -32,8 +41,13 @@ function postDeal(deal) {
             'value1': deal.url
         }
     }, function (error, response, body) {
-        if (error) console.log('postDeal error :', error)
-        else console.log('postDeal success :', body)
+        if (error) {
+            log('postDeal error : ' + error)
+        } else {
+            // all went good
+            dealsSent.push(deal.id)
+            fs.appendFileSync(dealsSentFile, deal.id + '\n')
+        }
     })
 }
 
@@ -47,6 +61,7 @@ function scroll(page) {
 }
 
 let scrape = async (limit = null) => {
+    log('Start deals scrapping...')
     const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
 
@@ -70,6 +85,7 @@ let scrape = async (limit = null) => {
                 deals.push({
                     id: id,
                     title: title.textContent.trim(),
+                    titleShort: title.textContent.trim().split(' ').splice(0, 7).join(' ') + '...',
                     url: title.href,
                     temperature: temperature ? parseInt(temperature.textContent.trim()) : 100,
                     merchant: merchant ? merchant.textContent.trim() : ''
@@ -79,21 +95,28 @@ let scrape = async (limit = null) => {
         return deals
     })
 
-    console.log(deals.length, 'deals found')
+    log(deals.length + ' deals found')
     const temperatureMin = 300
     deals = deals.filter(deal => deal.temperature > temperatureMin)
-    console.log(deals.length, 'deals above ' + temperatureMin + '°')
+    log(deals.length + ' deals above ' + temperatureMin + '°')
     if (limit) {
         deals = deals.splice(0, limit)
     }
-    console.log(deals.length, 'deals with limit')
+    log(deals.length + ' deals with limit')
 
     await browser.close()
 
-    return deals
+    // send deals at 1 second interval
+    deals.forEach((deal, index) => {
+        setTimeout(() => postDeal(deal), index * 1000)
+        if (index === (deals.length - 1)) {
+            // last iteration
+            setTimeout(() => log('Next execution planned in ' + hoursBetweenRuns + ' hours at ' + time(hoursBetweenRuns)), (index * 1000) + 1000)
+        }
+    })
 }
 
-scrape().then((deals) => {
-    // console.log(deals) // Success!
-    deals.map(deal => postDeal(deal))
-})
+scrape() // start now
+setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns) // and then every X hours
+
+

@@ -3,14 +3,15 @@ const config = JSON.parse(fs.readFileSync('config.json', 'utf8'))
 const puppeteer = require('puppeteer')
 const request = require('request')
 const hoursBetweenRuns = 3
+const temperatureMin = 300
 const dealsSentFile = 'deals-sent.log'
-let dealsSent
+let dealsSent = []
 
-let log = (str) => console.log(time() + ' : ' + str)
+const log = (str) => console.log(time() + ' : ' + str)
 
-let time = (addHours = 0) => {
+const time = (addHours = 0) => {
     const date = new Date()
-    date.setHours(date.getHours() + addHours);
+    date.setHours(date.getHours() + addHours)
     const hours = date.getHours() + ''
     const minutes = date.getMinutes() + ''
     return (hours.length === 1 ? '0' : '') + hours + 'h' + (minutes.length === 1 ? '0' : '') + minutes
@@ -20,47 +21,32 @@ try {
     dealsSent = fs.readFileSync(dealsSentFile, 'utf8').trim().split('\n')
     log('Found ' + dealsSent.length + ' deals already sent in ' + dealsSentFile)
 } catch (e) {
-    fs.writeFileSync(dealsSentFile, '', function (err) {
-        if (err) {
-            return console.error(err)
-        }
-    })
+    fs.writeFileSync(dealsSentFile, '', (err) => log(err ? err : 'created empty ' + dealsSentFile))
 }
 
-let postDeal = (deal) => {
-    if (dealsSent.indexOf(deal.id) !== -1) {
-        log('Avoid re-sending deal ' + deal.id + ' "' + deal.titleShort + '"')
-        return
-    } else {
-        log('Sending brand new deal ' + deal.id + ' "' + deal.titleShort + '"')
-    }
-    request({
-        uri: config.iftttWebhook,
-        method: 'POST',
-        json: {
-            'value1': deal.url
-        }
-    }, function (error, response, body) {
-        if (error) {
-            log('postDeal error : ' + error)
-        } else {
-            // all went good
+const postDeal = (deal) => {
+    const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
+    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.titleShort + '"')
+    if (dealAlreadySent) return
+    const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: deal.url } }
+    request(options, (error) => {
+        if (error) { log('postDeal error : ' + error) } else { // all went good
             dealsSent.push(deal.id)
             fs.appendFileSync(dealsSentFile, deal.id + '\n')
         }
     })
 }
 
-function scroll(page) {
-    return page.evaluate(() => {
-        return new Promise(resolve => {
-            window.scrollTo(0, document.body.scrollHeight)
-            setTimeout(() => resolve(), 500)
-        })
-    })
-}
+const logNextSrap = () => log('Next execution planned in ' + hoursBetweenRuns + ' hours at ' + time(hoursBetweenRuns))
 
-let scrape = async (limit = null) => {
+const scroll = (page) => page.evaluate(() => {
+    return new Promise(resolve => {
+        window.scrollTo(0, document.body.scrollHeight)
+        setTimeout(() => resolve(), 500)
+    })
+})
+
+const scrape = async (limit = null) => {
     log('Start deals scrapping...')
     const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
@@ -96,27 +82,33 @@ let scrape = async (limit = null) => {
     })
 
     log(deals.length + ' deals found')
-    const temperatureMin = 300
     deals = deals.filter(deal => deal.temperature > temperatureMin)
     log(deals.length + ' deals above ' + temperatureMin + '°')
     if (limit) {
         deals = deals.splice(0, limit)
     }
-    log(deals.length + ' deals with limit')
+    log(deals.length + ' deals after limit')
 
-    await browser.close()
+    browser.close()
 
     // send deals at 1 second interval
     deals.forEach((deal, index) => {
         setTimeout(() => postDeal(deal), index * 1000)
         if (index === (deals.length - 1)) {
             // last iteration
-            setTimeout(() => log('Next execution planned in ' + hoursBetweenRuns + ' hours at ' + time(hoursBetweenRuns)), (index * 1000) + 1000)
+            setTimeout(logNextSrap, (index * 1000) + 1000)
         }
     })
+    // if no deals found
+    if (!deals.length) {
+        // still display next planned scrap
+        logNextSrap()
+    }
 }
 
-scrape() // start now
-setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns) // and then every X hours
+// start now
+scrape()
+// and then every X hours
+setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns)
 
 

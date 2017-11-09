@@ -5,6 +5,7 @@ const request = require('request')
 const hoursBetweenRuns = 3
 const temperatureMin = 300
 const dealsSentFile = 'deals-sent.log'
+const verbose = false
 let dealsSent = []
 
 const log = (str) => console.log(time() + ' : ' + str)
@@ -26,7 +27,7 @@ try {
 
 const postDeal = (deal) => {
     const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
-    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.titleShort + '"')
+    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.title + '"')
     if (dealAlreadySent) return
     const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: deal.url } }
     request(options, (error) => {
@@ -39,12 +40,10 @@ const postDeal = (deal) => {
 
 const logNextSrap = () => log('Next execution planned in ' + hoursBetweenRuns + ' hours at ' + time(hoursBetweenRuns))
 
-const scroll = (page) => page.evaluate(() => {
-    return new Promise(resolve => {
-        window.scrollTo(0, document.body.scrollHeight)
-        setTimeout(() => resolve(), 500)
-    })
-})
+const scroll = (page) => page.evaluate(() => new Promise(resolve => {
+    window.scrollTo(0, document.body.scrollHeight)
+    setTimeout(() => resolve(), 500)
+}))
 
 const scrape = async (limit = null) => {
     log('Start deals scrapping...')
@@ -58,31 +57,31 @@ const scrape = async (limit = null) => {
     await scroll(page)
 
     let deals = await page.evaluate(() => {
-        let elements = document.querySelectorAll('section.thread-list--type-list article.thread.thread--type-list')
+        let elements = document.querySelectorAll('section.thread-list--type-list article.thread')
         let length = elements.length
         let deals = []
         for (let i = 0; i < length; i++) {
             let element = elements[i]
-            let title = element.querySelector('.thread-link.cept-tt')
-            let id = title.href.split('-').reverse()[0]
-            let temperature = element.querySelector('.vote-temp')
-            let merchant = element.querySelector('.cept-merchant-name')
-            if (id) {
-                deals.push({
-                    id: id,
-                    title: title.textContent.trim(),
-                    titleShort: title.textContent.trim().split(' ').splice(0, 7).join(' ') + '...',
-                    url: title.href,
-                    temperature: temperature ? parseInt(temperature.textContent.trim()) : 100,
-                    merchant: merchant ? merchant.textContent.trim() : ''
-                })
-            }
+            let titleEl = element.querySelector('.thread-title a')
+            let title = (titleEl ? titleEl.textContent.trim() : null || 'No title found').split(' ').splice(0, 7).join(' ') + '...'
+            let id = titleEl.href.split('-').reverse()[0]
+            let url = titleEl.href
+            let temperatureEl = element.querySelector('.vote-temp')
+            let temperature = temperatureEl ? parseInt(temperatureEl.textContent.trim()) : 100
+            let merchantEl = element.querySelector('.cept-merchant-name')
+            let merchant = merchantEl ? merchantEl.textContent.trim() : ''
+            deals.push({ id: id, title: title, url: url, temperature: temperature, merchant: merchant })
         }
         return deals
     })
 
     log(deals.length + ' deals found')
-    deals = deals.filter(deal => deal.temperature > temperatureMin)
+    deals = deals.filter(deal => {
+        if (verbose) {
+            log(deal.temperature + '° | ' + deal.title)
+        }
+        return deal.temperature && (deal.temperature > temperatureMin)
+    })
     log(deals.length + ' deals above ' + temperatureMin + '°')
     if (limit) {
         deals = deals.splice(0, limit)

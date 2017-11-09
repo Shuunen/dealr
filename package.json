@@ -1,6 +1,6 @@
 {
     "name": "dealr",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "description": "Daily deals with no clutter",
     "engines": {
         "node": ">=8.0.0"

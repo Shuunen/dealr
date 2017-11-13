@@ -2,9 +2,11 @@ const fs = require('fs')
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'))
 const puppeteer = require('puppeteer')
 const request = require('request')
-const hoursBetweenRuns = 3
-const temperatureMin = 300
+const hoursBetweenRuns = 2
+const temperatureMin = 500
+const limit = null
 const dealsSentFile = 'deals-sent.log'
+const testMode = false
 const verbose = false
 let dealsSent = []
 
@@ -27,13 +29,14 @@ try {
 
 const postDeal = (deal) => {
     const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
-    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.title + '"')
-    if (dealAlreadySent) return
-    const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: deal.url } }
+    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.title + '" ' + deal.price + ' @ ' + deal.merchant)
+    if (dealAlreadySent || testMode) return
+    const message = deal.price + ' @ ' + deal.merchant + ' : ' + deal.url
+    const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: message } }
     request(options, (error) => {
-        if (error) { log('postDeal error : ' + error) } else { // all went good
-            dealsSent.push(deal.id)
-            fs.appendFileSync(dealsSentFile, deal.id + '\n')
+        if (error) { log('postDeal error : ' + error) } else if (!testMode) { // all went good and not in test mode
+            dealsSent.push(deal.id) // persist to in memory list
+            fs.appendFileSync(dealsSentFile, deal.id + '\n') // and on file system
         }
     })
 }
@@ -45,7 +48,7 @@ const scroll = (page) => page.evaluate(() => new Promise(resolve => {
     setTimeout(() => resolve(), 500)
 }))
 
-const scrape = async (limit = null) => {
+const scrape = async () => {
     log('Start deals scrapping...')
     const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
@@ -64,13 +67,17 @@ const scrape = async (limit = null) => {
             let element = elements[i]
             let titleEl = element.querySelector('.thread-title a')
             let title = (titleEl ? titleEl.textContent.trim() : null || 'No title found').split(' ').splice(0, 7).join(' ') + '...'
-            let id = titleEl.href.split('-').reverse()[0]
-            let url = titleEl.href
+            let url = titleEl ? titleEl.href : null
+            let id = url ? url.split('-').reverse()[0] : null
             let temperatureEl = element.querySelector('.vote-temp')
-            let temperature = temperatureEl ? parseInt(temperatureEl.textContent.trim()) : 100
+            let temperature = temperatureEl ? parseInt(temperatureEl.textContent.trim()) : null
             let merchantEl = element.querySelector('.cept-merchant-name')
-            let merchant = merchantEl ? merchantEl.textContent.trim() : ''
-            deals.push({ id: id, title: title, url: url, temperature: temperature, merchant: merchant })
+            let merchant = merchantEl ? merchantEl.textContent.trim() : null
+            let priceEl = element.querySelector('.thread-price')
+            let price = priceEl ? priceEl.textContent.trim() : null
+            if (title && id && url && temperature && merchant && price) {
+                deals.push({ id: id, title: title, url: url, temperature: temperature, merchant: merchant, price: price })
+            }
         }
         return deals
     })
@@ -85,8 +92,8 @@ const scrape = async (limit = null) => {
     log(deals.length + ' deals above ' + temperatureMin + '°')
     if (limit) {
         deals = deals.splice(0, limit)
+        log(deals.length + ' deals after limit')
     }
-    log(deals.length + ' deals after limit')
 
     browser.close()
 
@@ -109,5 +116,3 @@ const scrape = async (limit = null) => {
 scrape()
 // and then every X hours
 setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns)
-
-

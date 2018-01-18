@@ -31,7 +31,7 @@ const postDeal = (deal) => {
     const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
     log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.title + '" ' + deal.price + ' @ ' + deal.merchant)
     if (dealAlreadySent || testMode) return
-    const message = deal.price + ' @ ' + deal.merchant + ' : ' + deal.url
+    const message = (deal.price ? deal.price + ' ' : '') + '@ ' + deal.merchant + ' : ' + deal.url
     const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: message } }
     request(options, (error) => {
         if (error) { log('postDeal error : ' + error) } else if (!testMode) { // all went good and not in test mode
@@ -53,14 +53,14 @@ const scrape = async () => {
     const browser = await puppeteer.launch({ headless: true })
     const page = await browser.newPage()
 
-    await page.goto('https://www.dealabs.com/hot')
+    await page.goto('https://www.dealabs.com')
     await page.waitFor(800)
     await scroll(page)
     await scroll(page)
     await scroll(page)
 
     let deals = await page.evaluate(() => {
-        let elements = document.querySelectorAll('section.thread-list--type-list article.thread')
+        let elements = document.querySelectorAll('section.tGrid article.thread:not(.thread--expired)')
         let length = elements.length
         let deals = []
         for (let i = 0; i < length; i++) {
@@ -75,7 +75,7 @@ const scrape = async () => {
             let merchant = merchantEl ? merchantEl.textContent.trim() : null
             let priceEl = element.querySelector('.thread-price')
             let price = priceEl ? priceEl.textContent.trim() : null
-            if (title && id && url && temperature && merchant && price) {
+            if (title && id && url && temperature && merchant) {
                 deals.push({ id: id, title: title, url: url, temperature: temperature, merchant: merchant, price: price })
             }
         }

@@ -4,7 +4,7 @@ const puppeteer = require('puppeteer')
 const request = require('request')
 const hoursBetweenRuns = 1
 const temperatureMin = 400
-const limit = null
+const limit = 3
 const dealsSentFile = 'deals-sent.log'
 const testMode = false
 const verbose = false
@@ -28,9 +28,7 @@ try {
 }
 
 const postDeal = (deal) => {
-    const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
-    log((dealAlreadySent ? 'Avoid re-sending deal' : 'Sending brand new deal') + ' ' + deal.id + ' "' + deal.title + '" ' + deal.price + ' @ ' + deal.merchant)
-    if (dealAlreadySent || testMode) return
+    if (testMode) return
     const message = (deal.price ? deal.price + ' ' : '') + '@ ' + deal.merchant + ' : ' + deal.url
     const options = { uri: config.iftttWebhook, method: 'POST', json: { value1: message } }
     request(options, (error) => {
@@ -83,6 +81,7 @@ const scrape = async () => {
     })
 
     log(deals.length + ' deals found')
+    // filter by temperature
     deals = deals.filter(deal => {
         if (verbose) {
             log(deal.temperature + '° | ' + deal.title)
@@ -90,11 +89,21 @@ const scrape = async () => {
         return deal.temperature && (deal.temperature > temperatureMin)
     })
     log(deals.length + ' deals above ' + temperatureMin + '°')
-    if (limit) {
+    // filter sent
+    deals = deals.filter(deal => {
+        const dealAlreadySent = (dealsSent.indexOf(deal.id) !== -1)
+        if (verbose) {
+            log((dealAlreadySent ? 'Avoid re-sending deal' : 'Brand new deal') + ' ' + deal.id + ' "' + deal.title + '" ' + deal.price + ' @ ' + deal.merchant)
+        }
+        return !dealAlreadySent
+    })
+    log(deals.length + ' deals not sent yet')
+    // filter if limit specified
+    if (limit && limit < deals.length) {
         deals = deals.splice(0, limit)
         log(deals.length + ' deals after limit')
     }
-
+    log(deals.length + ' deals will be sent to IFTTT')
     browser.close()
 
     // send deals at 1 second interval

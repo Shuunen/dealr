@@ -1,5 +1,6 @@
-# Dealr
-Daily deals without clutter.
+<img src="logo.gif" width="533">
+
+# Daily deals without clutter.
 
 ## How it works
 Dealr use puppeteer headless to scrap the deals on the web page, then post each new deal to IFTTT webhook.

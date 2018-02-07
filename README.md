@@ -17,5 +17,4 @@ Then install dependencies & start Dealr :
 `npm install` then `npm start` or `npm run dev` to watch for changes in app.js
 
 ## TODO
-[ ] transform many variables in app.js into configurable ones
-[ ] find another way to centralise posted deals
+* [ ] find another way to centralise posted deals

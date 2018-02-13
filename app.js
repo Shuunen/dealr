@@ -8,6 +8,7 @@ const limit = 3
 const dealsSentFile = 'deals-sent.log'
 const testMode = false
 const verbose = false
+const useInterval = false // TODO : this is not the good way and it consume memory
 let dealsSent = []
 
 const log = (str) => console.log(time() + ' : ' + str)
@@ -109,13 +110,13 @@ const scrape = async () => {
     // send deals at 1 second interval
     deals.forEach((deal, index) => {
         setTimeout(() => postDeal(deal), index * 1000)
-        if (index === (deals.length - 1)) {
+        if (index === (deals.length - 1) && useInterval) {
             // last iteration
             setTimeout(logNextSrap, (index * 1000) + 1000)
         }
     })
     // if no deals found
-    if (!deals.length) {
+    if (!deals.length && useInterval) {
         // still display next planned scrap
         logNextSrap()
     }
@@ -123,5 +124,7 @@ const scrape = async () => {
 
 // start now
 scrape()
-// and then every X hours
-setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns)
+if (useInterval) {
+    // every X hours
+    setInterval(scrape, 1000 * 60 * 60 * hoursBetweenRuns)
+}

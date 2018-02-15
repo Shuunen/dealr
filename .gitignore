@@ -3,3 +3,4 @@ config.json
 Thumbs.db
 package-lock.json
 yarn.lock
+app.log
